@@ -13,6 +13,7 @@ import { useTranslation } from "@/i18n/locale-provider";
 import { useProjectStore } from "@/features/window/stores/project.store";
 import { useUIState } from "@/features/window/stores/ui-state.store";
 import { useGitLogController } from "../../hooks/use-git-log-controller";
+import { useActiveWorkspaceId } from "@/features/workspace/stores/create-workspace-scoped-store";
 import { useGitWorkspaceReferences } from "../../hooks/use-git-workspace-references";
 import { useGitDiffActions } from "../../hooks/use-git-diff-actions";
 import {
@@ -61,6 +62,7 @@ import type {
 import { GitCommitInspector } from "./git-commit-inspector";
 import { GitCommitTable } from "./git-commit-table";
 import { GitLogTitleBar } from "./git-log-title-bar";
+import { GitCreateTagDialog } from "./git-create-tag-dialog";
 import { GitReferenceTree } from "./git-reference-tree";
 import GitRemoteManager from "../git-remote-manager";
 import { GitRepositoryEmptyState } from "../git-repository-empty-state";
@@ -80,6 +82,7 @@ type DirectReferenceAction = Extract<
 
 export function GitLogToolWindow() {
   const { t } = useTranslation();
+  const workspaceId = useActiveWorkspaceId();
   const [panel, setPanel] = useState<"log" | "console">("log");
   const activeRepoPath = useRepositoryStore.use.activeRepoPath();
   const availableRepoPaths = useRepositoryStore.use.availableRepoPaths();
@@ -118,6 +121,11 @@ export function GitLogToolWindow() {
   const [isReferenceOperating, setIsReferenceOperating] = useState(false);
   const [showFetchOptions, setShowFetchOptions] = useState(false);
   const [showRemoteManager, setShowRemoteManager] = useState(false);
+  const [tagRequest, setTagRequest] = useState<{
+    workspaceId: string;
+    repoPath: string;
+    commit: GitCommit;
+  } | null>(null);
   const emptyContextMenu = useDropdownMenu();
   const selectionAnchorRef = useRef<string | null>(null);
   const mainPanelLayout = useGitLogPreferencesStore.use.mainPanelLayout();
@@ -144,7 +152,12 @@ export function GitLogToolWindow() {
     setSelectedCommitHashes(new Set());
     selectionAnchorRef.current = null;
     setShowFetchOptions(false);
+    setTagRequest(null);
   }, [repoPath]);
+
+  useEffect(() => {
+    setTagRequest(null);
+  }, [workspaceId]);
 
   useEffect(() => {
     const pendingReference = pendingReferenceSelectionRef.current;
@@ -180,7 +193,7 @@ export function GitLogToolWindow() {
     revertSelectedCommit,
   } = useGitHistoryMutations({ repoPath, onCompleted: clearHistorySelection });
   const isReferenceMutationPending =
-    isReferenceOperating || pullWorkflow.isPulling || isMutatingHistory;
+    isReferenceOperating || pullWorkflow.isPulling || isMutatingHistory || tagRequest !== null;
   const navigateToSelectedBranchHead = useCallback(() => {
     if (!selectedReference || selectedReference.kind === "tag") return;
     const head = history.commits[0];
@@ -707,7 +720,7 @@ export function GitLogToolWindow() {
               commits={history.commits}
               selectedCommit={activeSelectedCommit}
               selectedCommitHashes={selectedCommitHashes}
-              isMutatingHistory={isMutatingHistory}
+              isMutatingHistory={isReferenceMutationPending}
               hasMore={history.hasMore}
               isLoadingMore={isLoadingMore}
               onSelect={selectCommit}
@@ -740,6 +753,11 @@ export function GitLogToolWindow() {
               onReset={(commit) => void resetBranchToCommit(commit)}
               onCherryPick={(commit) => void cherryPickSelectedCommit(commit)}
               onRevert={(commit) => void revertSelectedCommit(commit)}
+              onCreateTag={(commit) => {
+                if (repoPath && !isReferenceMutationPending) {
+                  setTagRequest({ workspaceId, repoPath, commit });
+                }
+              }}
               onLoadMore={() => void loadMore()}
             />
           </ResizablePanel>
@@ -771,6 +789,15 @@ export function GitLogToolWindow() {
         </ResizablePanelGroup>
       )}
       </>}
+      {tagRequest?.repoPath === repoPath && tagRequest.workspaceId === workspaceId ? (
+        <GitCreateTagDialog
+          key={`${tagRequest.repoPath}\0${tagRequest.commit.hash}`}
+          repoPath={tagRequest.repoPath}
+          commit={tagRequest.commit}
+          onCreated={refresh}
+          onClose={() => setTagRequest(null)}
+        />
+      ) : null}
       <GitRemoteManager
         isOpen={showRemoteManager}
         onClose={() => setShowRemoteManager(false)}

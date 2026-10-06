@@ -70,6 +70,7 @@ export function GitCommitTable({
   onReset,
   onCherryPick,
   onRevert,
+  onCreateTag,
   onLoadMore,
 }: {
   commits: GitCommit[];
@@ -99,6 +100,7 @@ export function GitCommitTable({
   onReset: (commit: GitCommit) => void;
   onCherryPick: (commit: GitCommit) => void;
   onRevert: (commit: GitCommit) => void;
+  onCreateTag: (commit: GitCommit) => void;
   onLoadMore: () => void;
 }) {
   const { t } = useTranslation();
@@ -430,6 +432,17 @@ export function GitCommitTable({
                             <Revert />
                             {t("git.revertCommit")}
                           </ContextMenuItem>
+                        </>
+                      )}
+                      <ContextMenuSeparator />
+                      <ContextMenuItem
+                        disabled={isMutatingHistory || hasMultipleContextCommits}
+                        onClick={() => onCreateTag(row.commit)}
+                      >
+                        {t("git.log.newTag")}
+                      </ContextMenuItem>
+                      {!hasMultipleContextCommits ? (
+                        <>
                           <ContextMenuSeparator />
                           <ContextMenuItem onClick={() => onCopyHash(row.commit)}>
                             <Copy />
@@ -444,7 +457,7 @@ export function GitCommitTable({
                             {t("git.log.copyCommitMessage")}
                           </ContextMenuItem>
                         </>
-                      )}
+                      ) : null}
                     </ContextMenuContent>
                   </ContextMenu>
                 );

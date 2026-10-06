@@ -476,6 +476,7 @@ function ReferenceActionMenu({
 }) {
   const { t } = useTranslation();
   const actions = getGitReferenceActions(reference);
+  const deleteAction = actions.find((action) => action === "deleteLocal" || action === "deleteRemote");
   const currentName = currentReference?.shortName ?? "HEAD";
   const groups: GitReferenceAction[][] = reference.isCurrent
     ? [
@@ -491,7 +492,6 @@ function ReferenceActionMenu({
           ["rebaseCurrentOnto", "mergeIntoCurrent"],
           ["createWorktree"],
           ["pullRebaseIntoCurrent", "pullMergeIntoCurrent"],
-          ["deleteRemote"],
         ]
       : [
           ["checkout", "createBranch", "checkoutAndRebase", "checkoutAndUpdate"],
@@ -499,7 +499,7 @@ function ReferenceActionMenu({
           ["rebaseCurrentOnto", "mergeIntoCurrent"],
           ["createWorktree"],
           ["update", "push"],
-          ["rename", "deleteLocal"],
+          ["rename"],
         ];
   const labels: Record<GitReferenceAction, string> = {
     checkout: t("git.checkout"),
@@ -587,7 +587,6 @@ function ReferenceActionMenu({
                   </ContextMenuSub>
                 );
               }
-              const destructive = action === "deleteLocal" || action === "deleteRemote";
               const disabled =
                 isMutating ||
                 (isPullLocked && isGitReferencePullAction(action, reference)) ||
@@ -601,7 +600,6 @@ function ReferenceActionMenu({
                 <ContextMenuItem
                   key={action}
                   disabled={disabled}
-                  variant={destructive ? "destructive" : "default"}
                   onClick={() => onAction(action, reference)}
                 >
                   <ActionIcon action={action} />
@@ -618,6 +616,19 @@ function ReferenceActionMenu({
           <ContextMenuItem onClick={() => void copyBranchName()}>
             <CopyIcon />
             {t("git.log.copyBranchName")}
+          </ContextMenuItem>
+        </>
+      ) : null}
+      {deleteAction ? (
+        <>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            disabled={isMutating}
+            variant="destructive"
+            onClick={() => onAction(deleteAction, reference)}
+          >
+            <ActionIcon action={deleteAction} />
+            {labels[deleteAction]}
           </ContextMenuItem>
         </>
       ) : null}

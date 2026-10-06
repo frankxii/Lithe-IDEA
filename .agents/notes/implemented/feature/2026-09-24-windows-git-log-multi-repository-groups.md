@@ -34,6 +34,35 @@ Windows Git Log 只显示单个活动仓库的分支：
 
 ## 决策
 
+### 从提交节点创建标签
+
+提交右键菜单提供 `New Tag…`，只允许一个提交，多选或正在执行 Git 写操作时禁用。
+依据 IntelliJ Community `fb72b4df43ab` 的
+`plugins/git4idea/backend/src/actions/GitCreateTagAction.java`、
+`platform/dvcs-impl/src/com/intellij/dvcs/ui/VcsLogSingleCommitAction.java` 和
+`plugins/git4idea/backend/resources/intellij.vcs.git.backend.xml`。
+输入框只填写标签名称，空名称或包含空白字符时无法提交；该入口创建轻量标签，
+即没有附加注释和签名的标签。需要注释或签名仍使用已有标签管理器。
+
+弹窗打开时固定活动仓库和右键提交的完整 hash，不提供可变目标字段，也不默认使用 HEAD。
+复用已有 `createTag` API，由 Git 校验完整的标签名规则，成功后刷新引用及提交历史；失败保留名称以便重试。
+弹窗使用共享 `AppDialog` 和 `Input`，工作区或仓库切换会卸载旧弹窗；已经发出的写入仍归属
+原仓库，迟到结果不能刷新或关闭新仓库的弹窗。不要把同一个弹窗换成新仓库路径后继续复用旧请求。
+
+Git Log 标题栏不显示固定的 `Read-only` 标签：面板已经支持活动仓库的分支和提交写操作，
+固定文字会误导用户。关闭按钮仍靠右；非活动仓库引用的只读限制继续由原有操作策略管理。
+
+本地和远程分支右键菜单先显示“拷贝分支名称”，删除操作单独放在最后一组，
+方便复制并降低误点删除的机会。当前分支仍不提供删除，执行 Git 写操作时删除仍禁用。
+
+### Tags 默认折叠，手动展开状态继续保存
+
+没有已保存引用折叠设置时，单仓库和多仓库 Git Log 的 Tags 默认折叠，
+Local / Remote 默认展开，避免标签较多时占满引用面板。
+初始值由 `git-log-preferences.store.ts` 的 `collapsedReferenceSections` 管理；
+手动展开、折叠和全部展开仍使用原有持久化逻辑，重新打开面板时保留用户选择。
+已有折叠设置优先于默认值，不在打开面板时强制重置，也不迁移覆盖已保存的展开状态。
+
 ### 本地与远程分支复用同一个图标
 
 普通本地、远程分支都使用顶部分支按钮已有的 `VcsIcon`（含明暗主题资源），
@@ -126,6 +155,12 @@ pending 引用 ref，在 `repoPath` 变化后的 effect 里调用 `selectReferen
 
 ## 验证
 
+- `git-create-tag-dialog.test.tsx` 验证名称校验、固定提交、重复提交、取消、失败重试和迟到结果隔离；
+  `git-commit-table-tag.test.tsx` 验证右键目标不是 HEAD/旧选择，以及多选和执行写操作时的禁用。
+- 在 Windows Git Log 中右键一个较早提交并新建标签，确认标签指向该提交，Tags 列表与历史引用刷新；
+  检查中文和英文标题、取消及重复标签失败，切换仓库或工作区后旧弹窗关闭。
+- 在没有已保存引用折叠设置的 Windows Git Log 中确认 Tags 默认折叠、Local / Remote
+  默认展开；单仓库和多仓库均适用。展开 Tags 后重新打开面板，确认仍保留展开状态。
 - 在 Windows Git Log 的 Local / Remote 中对比普通分支，确认与顶部分支按钮使用相同空心图标，
   明暗主题均正常；当前分支、收藏、标签及文件夹状态提示保持可辨认。
 - Windows 前端：`tsc --noEmit`；`bun test src/features/git`，含
