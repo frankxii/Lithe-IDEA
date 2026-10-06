@@ -21,6 +21,7 @@ import {
   GitMergeIcon as Squash,
   MagnifyingGlassIcon as Search,
   PencilIcon as Edit,
+  TagIcon,
   TrashIcon as Trash,
   XIcon,
 } from "@/ui/icons";
@@ -447,6 +448,7 @@ export function GitCommitTable({
                         disabled={isMutatingHistory || hasMultipleContextCommits}
                         onClick={() => onCreateTag(row.commit)}
                       >
+                        <TagIcon />
                         {t("git.log.newTag")}
                       </ContextMenuItem>
                       {!hasMultipleContextCommits ? (
