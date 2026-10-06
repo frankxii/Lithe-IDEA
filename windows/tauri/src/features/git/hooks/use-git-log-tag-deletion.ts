@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "@/i18n/locale-provider";
-import { showConfirmDialog } from "@/ui/dialog";
 import { deleteTag } from "../api/git-tags-api";
 import { normalizeRepositoryPath } from "../api/git-repo-api";
 import type { GitReference } from "../types/git.types";
@@ -37,7 +36,15 @@ export function useGitLogTagDeletion({
   }, [scope]);
 
   const deleteTagReference = async (reference: GitReference) => {
-    if (!repoPath || reference.kind !== "tag" || isBlocked || requestRef.current) return;
+    if (
+      !repoPath ||
+      reference.kind !== "tag" ||
+      !activeRef.current ||
+      latestRef.current.scope !== scope ||
+      latestRef.current.isBlocked ||
+      requestRef.current
+    )
+      return;
     if (
       reference.repositoryPath &&
       normalizeRepositoryPath(reference.repositoryPath) !== normalizeRepositoryPath(repoPath)
@@ -49,14 +56,6 @@ export function useGitLogTagDeletion({
     const isCurrent = () =>
       activeRef.current && requestRef.current === request && latestRef.current.scope === scope;
     try {
-      const confirmed = await showConfirmDialog(
-        t("git.log.deleteTagConfirm", { name: reference.shortName }),
-        {
-          title: t("git.deleteTag"),
-          confirmLabel: t("git.delete"),
-        },
-      );
-      if (!confirmed || !isCurrent() || latestRef.current.isBlocked) return;
       const deleted = await deleteTag(repoPath, reference.shortName);
       if (!isCurrent()) return;
       if (!deleted) throw new Error(t("git.actionFailed", { action: t("git.deleteTag") }));
