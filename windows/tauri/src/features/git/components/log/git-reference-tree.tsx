@@ -127,6 +127,7 @@ interface GitReferenceRepositoryGroup {
 }
 
 function ActionIcon({ action }: { action: GitReferenceAction }) {
+  if (action === "deleteTag") return null;
   if (action === "createBranch") return <PlusIcon />;
   if (action === "createWorktree") return <FolderPlusIcon />;
   if (action === "compareWithCurrent" || action === "diffWithWorkingTree") {
@@ -476,7 +477,9 @@ function ReferenceActionMenu({
 }) {
   const { t } = useTranslation();
   const actions = getGitReferenceActions(reference);
-  const deleteAction = actions.find((action) => action === "deleteLocal" || action === "deleteRemote");
+  const deleteAction = actions.find(
+    (action) => action === "deleteLocal" || action === "deleteRemote" || action === "deleteTag",
+  );
   const currentName = currentReference?.shortName ?? "HEAD";
   const groups: GitReferenceAction[][] = reference.isCurrent
     ? [
@@ -525,6 +528,7 @@ function ReferenceActionMenu({
     rename: t("git.log.renameBranch"),
     deleteLocal: t("git.deleteBranch"),
     deleteRemote: t("git.log.deleteRemoteBranch"),
+    deleteTag: t("git.delete"),
   };
 
   const copyBranchName = async () => {

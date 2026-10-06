@@ -42,6 +42,7 @@ import { useGitLogPreferencesStore } from "../../stores/git-log-preferences.stor
 import { useRepositoryStore } from "../../stores/git-repository.store";
 import type { GitCommit, GitFile, GitReference } from "../../types/git.types";
 import { useGitHistoryMutations } from "../../hooks/use-git-history-mutations";
+import { useGitLogTagDeletion } from "../../hooks/use-git-log-tag-deletion";
 import { useGitPullWorkflow } from "../../hooks/use-git-pull-workflow";
 import {
   resolveGitHistoryContextSelection,
@@ -192,8 +193,18 @@ export function GitLogToolWindow() {
     cherryPickSelectedCommit,
     revertSelectedCommit,
   } = useGitHistoryMutations({ repoPath, onCompleted: clearHistorySelection });
-  const isReferenceMutationPending =
+  const isOtherGitMutationPending =
     isReferenceOperating || pullWorkflow.isPulling || isMutatingHistory || tagRequest !== null;
+  const { deleteTagReference, isDeletingTag } = useGitLogTagDeletion({
+    repoPath,
+    scope: `${workspaceId}\0${repoPath ?? ""}`,
+    isBlocked: isOtherGitMutationPending,
+    onDeleted: async (reference) => {
+      forgetReference(reference);
+      await refresh();
+    },
+  });
+  const isReferenceMutationPending = isOtherGitMutationPending || isDeletingTag;
   const navigateToSelectedBranchHead = useCallback(() => {
     if (!selectedReference || selectedReference.kind === "tag") return;
     const head = history.commits[0];
@@ -573,6 +584,9 @@ export function GitLogToolWindow() {
         break;
       case "deleteRemote":
         void deleteRemoteReference(reference);
+        break;
+      case "deleteTag":
+        void deleteTagReference(reference);
         break;
       case "tracking":
         break;

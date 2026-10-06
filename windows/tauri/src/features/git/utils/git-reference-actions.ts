@@ -17,7 +17,8 @@ export type GitReferenceAction =
   | "tracking"
   | "rename"
   | "deleteLocal"
-  | "deleteRemote";
+  | "deleteRemote"
+  | "deleteTag";
 
 const CURRENT_BRANCH_ACTIONS: GitReferenceAction[] = [
   "createBranch",
@@ -64,6 +65,7 @@ const TAG_ACTIONS: GitReferenceAction[] = [
   "createBranch",
   "compareWithCurrent",
   "diffWithWorkingTree",
+  "deleteTag",
 ];
 
 export function getGitReferenceActions(reference: GitReference): GitReferenceAction[] {

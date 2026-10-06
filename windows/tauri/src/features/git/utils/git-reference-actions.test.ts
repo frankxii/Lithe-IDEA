@@ -76,12 +76,13 @@ describe("Git reference actions", () => {
     expect(suggestWorktreeBranchName(remote)).toBe("orders-worktree");
   });
 
-  test("offers only checkout, branch creation, and comparisons for tags", () => {
+  test("offers checkout, branch creation, comparisons, and local deletion for tags", () => {
     expect(getGitReferenceActions(reference("tag", "v1.0.0"))).toEqual([
       "checkout",
       "createBranch",
       "compareWithCurrent",
       "diffWithWorkingTree",
+      "deleteTag",
     ]);
   });
 
