@@ -40,7 +40,8 @@ Tags 中每个标签的右键菜单在最后一组提供 `Delete`，仅活动仓
 依据 IntelliJ Community `fb72b4df43ab` 的
 `plugins/git4idea/backend/src/ui/branch/GitBranchPopupActions.java` 中 `TagActions` / `DeleteTagAction`，
 以及 `plugins/git4idea/backend/src/branch/GitDeleteTagOperation.java`：默认删除本地标签，
-远程删除是独立动作，不随本地删除自动执行。该菜单项没有额外图标，沿用 IDEA 的动作定义。
+远程删除是独立动作，不随本地删除自动执行。按用户要求，Delete 与 Git 分支及提交节点的删除操作
+共用已有 `TrashIcon`，只复用图标，不新增删除行为。
 
 Windows 入口复用已有 `deleteTag` API，确认框包含完整标签名称；取消不写入，失败保留标签和选择。
 成功后先清除被删标签的历史筛选，再刷新引用与历史，避免继续查询已经不存在的标签。

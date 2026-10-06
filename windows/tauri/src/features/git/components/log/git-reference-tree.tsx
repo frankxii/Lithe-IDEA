@@ -127,7 +127,6 @@ interface GitReferenceRepositoryGroup {
 }
 
 function ActionIcon({ action }: { action: GitReferenceAction }) {
-  if (action === "deleteTag") return null;
   if (action === "createBranch") return <PlusIcon />;
   if (action === "createWorktree") return <FolderPlusIcon />;
   if (action === "compareWithCurrent" || action === "diffWithWorkingTree") {
@@ -144,7 +143,9 @@ function ActionIcon({ action }: { action: GitReferenceAction }) {
   }
   if (action === "push") return <UploadIcon />;
   if (action === "rename") return <PencilIcon />;
-  if (action === "deleteLocal" || action === "deleteRemote") return <TrashIcon />;
+  if (action === "deleteLocal" || action === "deleteRemote" || action === "deleteTag") {
+    return <TrashIcon />;
+  }
   return <GitBranchIcon />;
 }
 
