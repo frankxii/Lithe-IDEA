@@ -12,11 +12,16 @@
   },
   "windows": {
     "evidence": [
-      "windows/tauri/src/features/git"
+      "windows/tauri/src/features/git",
+      "windows/tauri/src/features/git/components/git-fetch-status.tsx",
+      "windows/tauri/src/features/git/services/git-fetch-progress.test.ts",
+      "windows/tauri/src/features/git/components/git-fetch-status.test.tsx",
+      "windows/tauri/src/features/git/stores/git-fetch-progress.integration.test.ts",
+      "windows/tauri/src/features/layout/components/footer/footer.tsx"
     ],
     "implementationStatus": "implemented",
     "verificationStatus": "pending"
   },
   "owner": "Git",
-  "verification": "创建、切换、合并分支并查看标签和远程，确认冲突与认证失败可恢复。"
+  "verification": "创建、切换、合并分支并查看标签和远程，确认冲突与认证失败可恢复。Windows Git Log 普通 Fetch 和 Fetch 选项执行后保持当前页签，底部状态栏显示等待或真实阶段进度；连接等待、认证、多个远程切换不沿用旧百分比，成功、失败、取消和预检查失败均收起；Console 仍保留命令与输出。核对中英文、明暗主题与窄窗口。"
 }

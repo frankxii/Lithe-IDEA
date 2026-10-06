@@ -514,7 +514,6 @@ export function GitLogToolWindow() {
 
   const fetchReferences = async (options?: GitFetchOptions) => {
     if (!repoPath || isReferenceMutationPending) return;
-    setPanel("console");
     setIsReferenceOperating(true);
     try {
       const result = await fetchChanges(repoPath, options);

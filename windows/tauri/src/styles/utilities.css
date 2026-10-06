@@ -90,6 +90,16 @@ svg.themed-file-icon {
   }
 }
 
+@keyframes gitFetchProgress {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+.lithe-git-fetch-progress [data-slot="progress-indicator"][data-indeterminate] {
+  width: 33.333%;
+  animation: gitFetchProgress 1.5s linear infinite;
+}
+
 .ui-text-shimmer {
   color: transparent;
   background-image: linear-gradient(
@@ -122,6 +132,11 @@ html[data-reduce-motion="true"] .drop-indicator {
   animation: none;
 }
 
+html[data-reduce-motion="true"] .lithe-git-fetch-progress [data-slot="progress-indicator"][data-indeterminate] {
+  animation: none;
+  transform: translateX(100%);
+}
+
 html[data-reduce-motion="true"] .ui-text-shimmer {
   color: var(--subtle-foreground);
   background: none;
@@ -142,6 +157,11 @@ html[data-reduce-motion="true"] .ui-text-shimmer {
 
   .drop-indicator {
     animation: none;
+  }
+
+  .lithe-git-fetch-progress [data-slot="progress-indicator"][data-indeterminate] {
+    animation: none;
+    transform: translateX(100%);
   }
 
   .ui-text-shimmer {
