@@ -108,6 +108,13 @@ describe("Git reference actions", () => {
       canDeleteBranch: true,
       canCompareWithCurrent: true,
     });
+    // Ahead/behind is only a cached local view; Update must fetch even at zero or unknown behind.
+    for (const branch of [current, behind]) {
+      for (const behindCount of [0, undefined]) {
+        expect(getGitReferenceToolbarState({ ...branch, behind: behindCount }, current, false).canUpdateSelected).toBe(true);
+      }
+    }
+    expect(getGitReferenceToolbarState({ ...current, upstreamShortName: undefined }, current, false).canUpdateSelected).toBe(false);
     expect(
       getGitReferenceToolbarState(reference("local", "feature"), current, false),
     ).toMatchObject({

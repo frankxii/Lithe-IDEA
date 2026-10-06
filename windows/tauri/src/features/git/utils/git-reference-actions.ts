@@ -104,9 +104,7 @@ export function getGitReferenceToolbarState(
 ): GitReferenceToolbarState {
   const selectedLocalBranch = selectedReference?.kind === "local" ? selectedReference : null;
   const canUpdateSelected = Boolean(
-    selectedLocalBranch &&
-      (selectedLocalBranch.isCurrent ||
-        (selectedLocalBranch.upstreamShortName && (selectedLocalBranch.behind ?? 0) > 0)),
+    selectedLocalBranch?.upstreamShortName,
   );
   return {
     canCreateBranch: !isMutating && Boolean(selectedReference ?? currentReference),

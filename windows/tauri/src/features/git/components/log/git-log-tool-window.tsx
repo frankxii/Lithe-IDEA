@@ -24,7 +24,6 @@ import {
   renameBranch,
   setBranchUpstream,
   unsetBranchUpstream,
-  updateBranch,
 } from "../../api/git-branches-api";
 import {
   checkoutAndRebase,
@@ -55,6 +54,8 @@ import {
 } from "../../utils/git-reference-actions";
 import { selectedReferenceAfterRename } from "../../utils/git-log-refresh";
 import { showGitPushDialog } from "../../services/git-push-dialog-service";
+import { updateGitLogBranch } from "../../services/git-log-branch-update";
+import { getGitPullResultPresentation } from "../../utils/git-pull-result-presentation";
 import { showGitPatchDialog } from "../../services/git-patch-dialog-service";
 import type {
   WorkingTreeDiffEntry,
@@ -120,6 +121,17 @@ export function GitLogToolWindow() {
   const [selectedCommitHashes, setSelectedCommitHashes] = useState<Set<string>>(new Set());
   const [previewRequest, setPreviewRequest] = useState(0);
   const [isReferenceOperating, setIsReferenceOperating] = useState(false);
+  const branchUpdateScope = `${workspaceId}\0${repoPath ?? ""}`;
+  const latestBranchUpdateScopeRef = useRef(branchUpdateScope);
+  latestBranchUpdateScopeRef.current = branchUpdateScope;
+  const branchUpdateRequestRef = useRef<symbol | null>(null);
+  const [pendingBranchUpdateScope, setPendingBranchUpdateScope] = useState<string | null>(null);
+  useEffect(() => {
+    setPendingBranchUpdateScope(null);
+    return () => {
+      branchUpdateRequestRef.current = null;
+    };
+  }, [branchUpdateScope]);
   const [showFetchOptions, setShowFetchOptions] = useState(false);
   const [showRemoteManager, setShowRemoteManager] = useState(false);
   const [tagRequest, setTagRequest] = useState<{
@@ -194,7 +206,11 @@ export function GitLogToolWindow() {
     revertSelectedCommit,
   } = useGitHistoryMutations({ repoPath, onCompleted: clearHistorySelection });
   const isOtherGitMutationPending =
-    isReferenceOperating || pullWorkflow.isPulling || isMutatingHistory || tagRequest !== null;
+    isReferenceOperating ||
+    pendingBranchUpdateScope === branchUpdateScope ||
+    pullWorkflow.isPulling ||
+    isMutatingHistory ||
+    tagRequest !== null;
   const { deleteTagReference, isDeletingTag } = useGitLogTagDeletion({
     repoPath,
     scope: `${workspaceId}\0${repoPath ?? ""}`,
@@ -327,13 +343,15 @@ export function GitLogToolWindow() {
       return;
     }
 
-    const confirmed = await showConfirmDialog(
-      t("git.log.confirmAction", {
-        action: t(`git.log.action.${action}`),
-        reference: reference.shortName,
-      }),
-      { title: t(`git.log.action.${action}`) },
-    );
+    const confirmed =
+      (action === "checkout" && reference.kind !== "tag") ||
+      (await showConfirmDialog(
+        t("git.log.confirmAction", {
+          action: t(`git.log.action.${action}`),
+          reference: reference.shortName,
+        }),
+        { title: t(`git.log.action.${action}`) },
+      ));
     if (!confirmed) return;
     setIsReferenceOperating(true);
     try {
@@ -496,19 +514,44 @@ export function GitLogToolWindow() {
   };
 
   const updateSelectedBranch = async (reference: GitReference) => {
-    if (!repoPath || isReferenceMutationPending) return;
+    if (
+      !repoPath ||
+      isReferenceMutationPending ||
+      branchUpdateRequestRef.current ||
+      latestBranchUpdateScopeRef.current !== branchUpdateScope ||
+      reference.kind !== "local" ||
+      !reference.upstreamShortName
+    ) return;
     const action = t("git.log.updateBranch");
-    if (!reference.isCurrent) {
-      await runReferenceMutation(action, () => updateBranch(repoPath, reference));
-      return;
-    }
-    setIsReferenceOperating(true);
+    const request = Symbol("update-branch");
+    branchUpdateRequestRef.current = request;
+    setPendingBranchUpdateScope(branchUpdateScope);
+    const isCurrent = () =>
+      branchUpdateRequestRef.current === request &&
+      latestBranchUpdateScopeRef.current === branchUpdateScope;
     try {
-      await pullWorkflow.pull();
+      const result = await updateGitLogBranch(
+        repoPath,
+        reference,
+        async () => {
+          if (isCurrent()) await refresh();
+        },
+        isCurrent,
+      );
+      if (!isCurrent()) return;
+      if (result.status === "branch-updated") {
+        toast.success(t("git.actionCompleted", { action }));
+      } else {
+        const presentation = getGitPullResultPresentation(result, t);
+        if (presentation) toast[presentation.tone](presentation.message);
+      }
     } catch (error) {
-      toast.error(referenceActionErrorMessage(action, error));
+      if (isCurrent()) toast.error(referenceActionErrorMessage(action, error));
     } finally {
-      setIsReferenceOperating(false);
+      if (isCurrent()) {
+        branchUpdateRequestRef.current = null;
+        setPendingBranchUpdateScope(null);
+      }
     }
   };
 

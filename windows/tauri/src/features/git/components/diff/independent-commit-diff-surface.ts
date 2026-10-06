@@ -871,7 +871,7 @@ export function mountIndependentCommitDiff(host: HTMLElement, options: Options) 
       const position = views[focused].getPosition();
       if (ready && position) options.source(focused, position.lineNumber, position.column);
     },
-    reveal(change: IndependentChange) {
+    reveal(change: IndependentChange, takeFocus = true) {
       withoutScrollSync(() => {
         const side: Side = change.rightStart === change.rightEnd ? 0 : 1;
         const line = Math.min(
@@ -889,7 +889,7 @@ export function mountIndependentCommitDiff(host: HTMLElement, options: Options) 
           );
         }
         focused = side;
-        views[side].focus();
+        if (takeFocus) views[side].focus();
         options.changed();
       });
     },

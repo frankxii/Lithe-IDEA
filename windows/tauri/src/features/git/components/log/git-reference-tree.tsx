@@ -596,11 +596,7 @@ function ReferenceActionMenu({
                 isMutating ||
                 (isPullLocked && isGitReferencePullAction(action, reference)) ||
                 (action === "checkoutAndUpdate" && !reference.upstreamShortName) ||
-                (action === "update" &&
-                  !(
-                    reference.isCurrent ||
-                    (reference.upstreamShortName && (reference.behind ?? 0) > 0)
-                  ));
+                (action === "update" && !reference.upstreamShortName);
               return (
                 <ContextMenuItem
                   key={action}

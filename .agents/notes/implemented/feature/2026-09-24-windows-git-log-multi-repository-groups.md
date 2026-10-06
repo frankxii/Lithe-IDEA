@@ -34,6 +34,45 @@ Windows Git Log 只显示单个活动仓库的分支：
 
 ## 决策
 
+### 提交区域键盘导航与直接切换分支
+
+提交列表的键盘焦点由稳定的滚动容器持有，点击图谱圆点、提交文字或空白处
+都会把焦点交给这个容器。上下箭头按筛选后的可见提交顺序更新选择和详情，
+到达首尾不循环；Home / End、Shift 范围选择和 Enter 打开差异继续可用。
+不要把焦点交给虚拟行并安排下一帧去找它：虚拟滚动移除行后会丢失焦点，
+连续方向键就无法继续导航。输入框、菜单及列宽按钮保留各自键盘操作。
+
+自动文件预览也必须遵守焦点归属：提交选择和方向键触发的 Diff 带上
+`preserveFocus`，并排与统一引擎仍定位第一处改动，但不调用编辑器 `focus()`。
+只修列表的点击焦点不够，异步 Diff 比较准备好后再聚焦会把焦点抢到右侧第一列。
+主动双击 / Enter 打开完整 Diff 不附加自动预览的保留焦点策略；差异箭头和
+跨文件导航继续聚焦编辑器，显式跨文件动作清除预览标记。
+
+引用树右键的普通分支 Checkout 直接调用已有检出入口，不增加二次确认。
+仍由 Core 的检出预检查保护会被覆盖的本地修改，不强制切换或自动丢弃修改。
+标签 Checkout 与 Merge / Rebase 等其他动作的确认流程不随这项变更取消。
+
+### Update Selected 按分支检出位置更新
+
+依据 IntelliJ Community `fb72b4df43aba102479eb0502d20b03586b9c5b8` 的
+`plugins/git4idea/backend/src/ui/branch/dashboard/BranchesDashboardActions.kt`
+及 `plugins/git4idea/backend/src/ui/branch/GitBranchActionsUtil.kt`：配置了跟踪
+分支即可更新，不能因为本地缓存的 behind 是 0 或未知而禁用。远程引用、标签、
+未配置跟踪分支以及正在写入时仍不可更新；工具栏与右键菜单共用这一条件。
+
+执行前读取真实工作树列表。当前检出的分支直接通过已有 Pull 工作流在后台
+更新，采用 Lithe 现有 Merge 默认值；该默认值也与 IDEA
+`plugins/git4idea/shared/src/git4idea/config/GitVcsOptions.kt` 一致。未检出的
+本地分支沿用 Core 原地快进；分支已在其他 worktree（独立工作目录）检出时，
+在其目录内仅允许快进，不切换当前项目或强制移动被检出的引用。
+如果其他 worktree 已分叉，立即报告失败，不能等待一个没有界面宿主的
+Merge / Rebase 选择弹窗。用户主动 Pull 的弹窗和分叉选择流程继续保留。
+
+复用现有工作流的脏工作区阻断和冲突结果展示，不新增自动 stash 或更新方式
+设置。重复点击由同步请求标识阻止；读取工作树后必须再次检查请求是否仍属于
+当前仓库和工作区，旧请求的迟到结果不能刷新新仓库或解除新请求的禁用状态。
+已发出的 Git 命令继续属于其原始目录，执行事件照常进入项目 Console。
+
 ### Tags 引用节点可以删除本地标签
 
 Tags 中每个标签的右键菜单在最后一组提供 `Delete`，仅活动仓库允许执行。
@@ -168,6 +207,17 @@ pending 引用 ref，在 `repoPath` 变化后的 effect 里调用 `selectReferen
 - macOS 端尚未做对应的引用树分组，行为与 Windows 暂不一致。
 
 ## 验证
+
+- `git-commit-table-tag.test.tsx` 覆盖点击后焦点、上下键、首尾边界、Home / End、
+  Shift 范围意图、筛选后的导航、Enter 与菜单及输入框的键盘隔离。
+- `git-log-branch-actions.test.tsx` 覆盖 Checkout 无二次确认、后台更新入口、
+  重复点击及跨仓库迟到结果；`git-log-branch-update.test.ts` 覆盖当前、未检出、
+  其他 worktree 的更新、分叉失败、脏工作区和过期读取；`git-pull-workflow.test.ts`
+  确认后台快进分叉不会悬挂，用户主动 Pull 的策略弹窗不回归。
+- 原生验收：Windows Git Log 点击较早提交后连续上下键查看详情，筛选并滚动
+  跨虚拟行继续导航；右键普通分支 Checkout 不弹确认；本地跟踪分支 behind 为 0
+  时 Update Selected 仍可点击，当前分支不打开 Pull 弹窗，其他工作树分支在其
+  原目录更新，分叉或脏工作区保留本地内容并报告失败。
 
 - `use-git-log-tag-deletion.test.tsx` 验证直接删除、名称及仓库目标、重复请求、失败重试、旧动作回调失效和
   迟到删除结果隔离；`git-reference-actions.test.ts` 验证标签包含删除动作且不改变分支动作。
