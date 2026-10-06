@@ -175,24 +175,33 @@ export const useFileSearch = (
       };
     }
 
+    // An empty query is a switcher; a filename query must also find the active file.
+    const matchingOpenBufferPaths = new Set(openBufferPaths);
+    if (activeBufferPath) matchingOpenBufferPaths.add(activeBufferPath);
+
     if (options.useBackendResults) {
       return categorizeBackendHits(
         fffHits ?? [],
         activeBufferPath,
-        openBufferPaths,
+        matchingOpenBufferPaths,
         recentFilePaths,
       );
     }
 
     if (fffHits && fffHits.length > 0) {
-      return categorizeBackendHits(fffHits, activeBufferPath, openBufferPaths, recentFilePaths);
+      return categorizeBackendHits(
+        fffHits,
+        activeBufferPath,
+        matchingOpenBufferPaths,
+        recentFilePaths,
+      );
     }
 
     const compareScoredFiles = (a: SearchResult, b: SearchResult) => {
       if (b.score !== a.score) return b.score - a.score;
 
-      const aIsOpen = openBufferPaths.has(a.file.path);
-      const bIsOpen = openBufferPaths.has(b.file.path);
+      const aIsOpen = matchingOpenBufferPaths.has(a.file.path);
+      const bIsOpen = matchingOpenBufferPaths.has(b.file.path);
       if (aIsOpen !== bIsOpen) return aIsOpen ? -1 : 1;
 
       const aIsRecent = recentFilePaths.has(a.file.path);
@@ -219,7 +228,7 @@ export const useFileSearch = (
       if (score <= 0) continue;
 
       const candidate = { file, score };
-      if (openBufferPaths.has(file.path)) {
+      if (matchingOpenBufferPaths.has(file.path)) {
         insertSortedLimited(openCandidates, candidate, compareScoredFiles, MAX_RESULTS);
       } else if (recentFilePaths.has(file.path)) {
         insertSortedLimited(recentCandidates, candidate, compareScoredFiles, MAX_RESULTS);
