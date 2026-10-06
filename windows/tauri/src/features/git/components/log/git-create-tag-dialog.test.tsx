@@ -138,7 +138,7 @@ test("validates names and creates a lightweight tag on the selected commit exact
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
     container.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click();
   });
-  expect(createTag.mock.calls).toEqual([["C:/repo-a", "release/v1", undefined, commit.hash]]);
+  expect(createTag.mock.calls).toEqual([["C:/repo-a", "release/v1", undefined, commit.hash, false, { lightweight: true }]]);
   expect(input().disabled).toBe(true);
   expect(onClose).not.toHaveBeenCalled();
   await finishCreation(true);

@@ -42,6 +42,11 @@ Windows Git Log 只显示单个活动仓库的分支：
 不要把焦点交给虚拟行并安排下一帧去找它：虚拟滚动移除行后会丢失焦点，
 连续方向键就无法继续导航。输入框、菜单及列宽按钮保留各自键盘操作。
 
+焦点迁移后也必须保留提交菜单的键盘入口。菜单键、Shift+F10 及列表容器的
+原生键盘菜单请求转交给当前选中行的真实 ContextMenuTrigger，由共享菜单处理
+锚点与选择；关闭菜单时返回稳定列表容器。不能让外层把请求当作空白区域。
+回归必须使用真实菜单、Portal 和 Trigger，不能只替换成普通 div/button。
+
 自动文件预览也必须遵守焦点归属：提交选择和方向键触发的 Diff 带上
 `preserveFocus`，并排与统一引擎仍定位第一处改动，但不调用编辑器 `focus()`。
 只修列表的点击焦点不够，异步 Diff 比较准备好后再聚焦会把焦点抢到右侧第一列。
@@ -73,6 +78,14 @@ Merge / Rebase 选择弹窗。用户主动 Pull 的弹窗和分叉选择流程�
 当前仓库和工作区，旧请求的迟到结果不能刷新新仓库或解除新请求的禁用状态。
 已发出的 Git 命令继续属于其原始目录，执行事件照常进入项目 Console。
 
+工作目录不等于分支身份。后台更新固定选中分支的完整 `refs/heads/*`，Fetch 后
+和 Pull 前重新读取该工作树当前检出的分支；外部客户端切换分支或分离 HEAD 时
+返回 `state-changed`，不能改为更新新分支。请求同时携带 Core `git.write/pull` 的
+可选 `expectedBranch`，Core 在写租约内、启动 Pull 前再次核对 symbolic HEAD。
+这条路径固定已 Fetch 的 upstream 提交，直接调用 Git merge/rebase 整合，避免
+git pull 再次 Fetch 留下新的网络等待窗口；普通 Pull 的行为不变。
+省略字段的现有调用方不变；这不是外部 Git 的跨进程 checkout 锁。
+
 ### Tags 引用节点可以删除本地标签
 
 Tags 中每个标签的右键菜单在最后一组提供 `Delete`，仅活动仓库允许执行。
@@ -96,6 +109,10 @@ Windows 入口复用已有 `deleteTag` API，点击 Delete 后直接删除完整
 `plugins/git4idea/backend/resources/intellij.vcs.git.backend.xml`。
 输入框只填写标签名称，空名称或包含空白字符时无法提交；该入口创建轻量标签，
 即没有附加注释和签名的标签。需要注释或签名仍使用已有标签管理器。
+
+此入口显式传递 `lightweight` 模式，Windows adapter 添加 `--no-sign`，覆盖
+`tag.gpgSign=true`，不启动签名程序或消息编辑器，也不修改用户配置。轻量模式
+拒绝同时传入注释或签名；现有标签管理器省略该模式时保持原签名策略。
 
 弹窗打开时固定活动仓库和右键提交的完整 hash，不提供可变目标字段，也不默认使用 HEAD。
 复用已有 `createTag` API，由 Git 校验完整的标签名规则，成功后刷新引用及提交历史；失败保留名称以便重试。
@@ -237,8 +254,10 @@ pending 引用 ref，在 `repoPath` 变化后的 effect 里调用 `selectReferen
   展开后才加载）与 `use-git-workspace-references.test.tsx`（只加载活动仓库、
   按需加载、只刷新已加载仓库、错误重试，以及排队项在面板卸载 / 仓库移出工作区后
   不得发起原生读取且要归还 pending 计数）。
-- Rust 未改动（Core 的仓库发现和引用契约保持原样），`cargo test --manifest-path
-  rust/lithe-core/Cargo.toml` 无需针对本改动重跑。
+- Core 的仓库发现与引用读取契约保持原样；后台更新新增可选的 `expectedBranch`
+  Pull 守卫。`git_repository_setup.rs` 验证完整分支、切换/分离 HEAD、错误操作
+  与省略字段兼容；Windows `platform.rs` 用真实 Git 验证 `tag.gpgSign=true`
+  时显式轻量标签仍指向 commit，签名器/编辑器没有运行，原配置未改变。
 - 手工：在工作区 `D:/workspace/work-code/op` 打开 Git Log，确认仓库分组、工作树
   不再显示 0 条、点击跨仓库分支切换加载，以及单仓库项目无回归。
 

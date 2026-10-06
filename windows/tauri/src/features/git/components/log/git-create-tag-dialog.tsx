@@ -39,7 +39,7 @@ export function GitCreateTagDialog({
     setIsCreating(true);
     setError(null);
     try {
-      const created = await createTag(repoPath, name, undefined, commit.hash);
+      const created = await createTag(repoPath, name, undefined, commit.hash, false, { lightweight: true });
       if (!activeRef.current) return;
       if (!created) {
         setError(t("git.log.tagCreateFailed", { name }));

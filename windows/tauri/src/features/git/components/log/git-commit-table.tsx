@@ -178,6 +178,13 @@ export function GitCommitTable({
     ) return;
     const currentIndex = visibleRows.findIndex((row) => row.commit.hash === selectedCommit?.hash);
 
+    if (event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) {
+      event.preventDefault();
+      event.stopPropagation();
+      openSelectedCommitMenu();
+      return;
+    }
+
     switch (event.key) {
       case "ArrowDown":
         event.preventDefault();
@@ -208,6 +215,23 @@ export function GitCommitTable({
         }
         break;
     }
+  };
+
+  const openSelectedCommitMenu = () => {
+    const index = visibleRows.findIndex((row) => row.commit.hash === selectedCommit?.hash);
+    const trigger = scrollRef.current?.querySelector<HTMLElement>(
+      `[data-git-commit-index="${index}"]`,
+    );
+    if (!trigger) return;
+    const bounds = trigger.getBoundingClientRect();
+    // Route the keyboard request through the real trigger, preserving Base UI's
+    // anchor, selection and menu lifecycle instead of opening the empty-area menu.
+    trigger.dispatchEvent(new window.MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: bounds.left,
+      clientY: bounds.top + bounds.height / 2,
+    }));
   };
 
   return (
@@ -273,6 +297,13 @@ export function GitCommitTable({
         tabIndex={0}
         aria-label={t("git.console.log")}
         onKeyDown={handleKeyDown}
+        onContextMenu={(event) => {
+          if (event.target === event.currentTarget && event.clientX === 0 && event.clientY === 0) {
+            event.preventDefault();
+            event.stopPropagation();
+            openSelectedCommitMenu();
+          }
+        }}
         onClick={(event) => {
           const target = event.target as HTMLElement;
           if (
@@ -350,7 +381,7 @@ export function GitCommitTable({
                         <GitLogColumnResizeHandle column="date" onStartResize={startResize} />
                       </div>
                     </ContextMenuTrigger>
-                    <ContextMenuContent>
+                    <ContextMenuContent finalFocus={scrollRef}>
                       {hasMultipleContextCommits ? (
                         <>
                           <ContextMenuItem

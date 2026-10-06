@@ -25,6 +25,12 @@ export async function updateGitLogBranch(
       // matching IDEA without switching the active repository or rewriting history.
       strategy: target.is_current ? defaultPullStrategy() : "ffOnly",
       allowStrategyPrompt: false,
+      expectedBranch: reference.fullName,
+      validateBranch: async () => {
+        if (!isActive()) return false;
+        const current = (await readWorktrees(target.path)).find((worktree) => worktree.is_current);
+        return isActive() && !!current && !current.is_detached && current.branch === reference.shortName;
+      },
       refresh: async () => {
         if (!target.is_current)
           emitGitChanged({

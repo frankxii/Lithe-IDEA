@@ -14,7 +14,9 @@ let diverged: boolean;
 let hasLocalChanges: boolean;
 const calls: string[] = [];
 const refresh = mock(async () => {});
-const readWorktrees = mock(async (_repoPath: string) => entries);
+const readWorktrees = mock(async (repoPath: string) => entries.map((entry) => ({
+  ...entry, is_current: entry.path === repoPath,
+})));
 const updateBranch = mock(async (_repoPath: string, _reference: GitReference) => {});
 const showPull = mock(async () => ({ status: "cancelled" as const }));
 const reference: GitReference = {
@@ -66,7 +68,8 @@ beforeEach(() => {
               hasLocalChanges,
             };
           },
-          pull: async (path, strategy: PullStrategy) => {
+          pull: async (path, strategy: PullStrategy, _reference, expectedBranch) => {
+            expect(expectedBranch).toBe(reference.fullName);
             calls.push(`pull:${path}:${strategy}`);
             return { success: true };
           },
@@ -180,4 +183,36 @@ test("A Log that changes scope during worktree discovery never starts a write", 
   expect(updateBranch).not.toHaveBeenCalled();
   expect(calls).toEqual([]);
   expect(refresh).not.toHaveBeenCalled();
+});
+
+for (const changeAt of ["fetch", "preflight"] as const) {
+  test(`A checkout changed during ${changeAt} cannot update the replacement branch`, async () => {
+    entries = [tree("C:/worktree", false)];
+    const pull = mock(async () => ({ success: true }));
+    const changeBranch = () => { entries = [{ ...tree("C:/worktree", false), branch: "other" }]; };
+    // The workflow pauses at deterministic dependency boundaries, not a timer.
+    spies.push(spyOn(remotes, "getGitPullWorkflow").mockImplementation(() => new GitPullWorkflow({
+      fetch: async () => { if (changeAt === "fetch") changeBranch(); return { success: true }; },
+      preflight: async () => {
+        if (changeAt === "preflight") changeBranch();
+        return { upstream: "origin/other", ahead: 0, behind: 2, diverged: false, hasLocalChanges: false };
+      },
+      pull, operationState: async () => null,
+    })));
+    await expect(updateGitLogBranch("C:/repo", reference, refresh)).resolves.toEqual({
+      status: "blocked", reason: "state-changed",
+    });
+    expect(pull).not.toHaveBeenCalled(); expect(updateBranch).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+}
+
+test("A detached target worktree also blocks the selected-branch update", async () => {
+  entries = [tree("C:/worktree", false)];
+  readWorktrees.mockImplementationOnce(async () => entries)
+    .mockImplementationOnce(async () => [{ ...tree("C:/worktree", true), is_detached: true }]);
+  await expect(updateGitLogBranch("C:/repo", reference, refresh)).resolves.toEqual({
+    status: "blocked", reason: "state-changed",
+  });
+  expect(calls).toEqual(["fetch:C:/worktree"]);
 });

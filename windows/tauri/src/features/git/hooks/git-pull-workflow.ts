@@ -19,6 +19,7 @@ export interface GitPullWorkflowDependencies {
     repoPath: string,
     strategy: PullStrategy,
     reference?: GitReference,
+    expectedBranch?: string,
   ) => Promise<RemoteActionResult>;
   operationState: (repoPath: string) => Promise<GitOperationState | null>;
 }
@@ -34,6 +35,10 @@ export interface GitPullWorkflowOptions {
   reference?: GitReference;
   /** Background fast-forward updates must fail rather than wait for a dialog host. */
   allowStrategyPrompt?: boolean;
+  /** Complete local ref selected by a background update, not a new Pull source. */
+  expectedBranch?: string;
+  /** Revalidate that the worktree still has the selected branch checked out. */
+  validateBranch?: () => Promise<boolean>;
 }
 
 export interface GitPullWorkflowSnapshot {
@@ -92,6 +97,10 @@ export class GitPullWorkflow {
           stage: "fetch",
           error: fetched.error,
         };
+      }
+
+      if (options.validateBranch && !(await options.validateBranch())) {
+        return { status: "blocked", reason: "state-changed" };
       }
 
       let preflight: GitPullPreflight;
@@ -178,7 +187,10 @@ export class GitPullWorkflow {
         strategy = selectedStrategy;
       }
 
-      const pulled = await this.dependencies.pull(repoPath, strategy, options.reference);
+      if (options.validateBranch && !(await options.validateBranch())) {
+        return { status: "blocked", reason: "state-changed" };
+      }
+      const pulled = await this.dependencies.pull(repoPath, strategy, options.reference, options.expectedBranch);
       if (pulled.success) {
         return { status: "pulled", strategy };
       }
