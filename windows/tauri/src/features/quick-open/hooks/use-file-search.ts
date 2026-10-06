@@ -11,7 +11,7 @@ import {
   MAX_RESULTS,
 } from "../constants/limits";
 import type { CategorizedFiles, FileItem, SearchResult } from "../types/quick-open.types";
-import { filterQuickOpenRecentFiles } from "../utils/file-filtering";
+import { filterQuickOpenRecentFiles, shouldIgnoreFile } from "../utils/file-filtering";
 import { fuzzyScore } from "../utils/fuzzy-search";
 
 interface FileSearchOptions {
@@ -131,6 +131,8 @@ export const useFileSearch = (
     }
 
     if (!debouncedQuery.trim()) {
+      // The empty-query switcher hides noise files; a typed query searches the full snapshot.
+      const isSwitcherCandidate = (file: { path: string }) => !shouldIgnoreFile(file.path);
       const openBufferFiles = openBuffers.slice(0, MAX_OPEN_BUFFERS_SHOWN).map((file) => ({
         name: file.name,
         path: file.path,
@@ -140,7 +142,7 @@ export const useFileSearch = (
       if (activeBufferPath) openAndActivePaths.add(activeBufferPath);
 
       const recentFilesInResults = recentFiles
-        .filter((file) => !openAndActivePaths.has(file.path))
+        .filter((file) => !openAndActivePaths.has(file.path) && isSwitcherCandidate(file))
         .slice(
           0,
           Math.min(MAX_RECENT_FILES_NO_QUERY, Math.max(0, MAX_RESULTS - openBufferFiles.length)),
@@ -154,7 +156,7 @@ export const useFileSearch = (
       const otherCandidates: FileItem[] = [];
 
       for (const file of files) {
-        if (excludedPaths.has(file.path)) continue;
+        if (excludedPaths.has(file.path) || !isSwitcherCandidate(file)) continue;
         insertSortedLimited(
           otherCandidates,
           file,

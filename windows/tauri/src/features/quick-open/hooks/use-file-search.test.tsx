@@ -71,3 +71,53 @@ for (const backend of [false, true]) {
     }
   });
 }
+
+test("typed queries find switcher-ignored files while the empty switcher hides them", async () => {
+  const restoreDom = installHappyDom();
+  const environment = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const previousAct = environment.IS_REACT_ACT_ENVIRONMENT;
+  const previousBuffers = useBufferStore.getState();
+  const previousRecent = useRecentFilesStore.getState().recentFiles;
+  const host = document.createElement("div");
+  let root: Root | undefined;
+  let results: CategorizedFiles | undefined;
+  const gitignore = { name: ".gitignore", path: "D:/fixture/project/.gitignore", isDir: false };
+  const cargoLock = { name: "Cargo.lock", path: "D:/fixture/project/Cargo.lock", isDir: false };
+  function Probe({ query }: { query: string }) {
+    results = useFileSearch([target, gitignore, cargoLock], query, null, {
+      hasLoadedFiles: true,
+      rootFolderPath: "D:/fixture/project",
+    });
+    return null;
+  }
+  try {
+    environment.IS_REACT_ACT_ENVIRONMENT = true;
+    // Neither file is the active editor, so only the full snapshot can supply them.
+    useBufferStore.setState({
+      buffers: [createPaneContent("active", { type: "editor", ...target, content: "" })],
+      activeBufferId: "active",
+    });
+    useRecentFilesStore.setState({ recentFiles: [] });
+    document.body.append(host);
+    root = createRoot(host);
+    const mountedRoot = root;
+    await act(async () => mountedRoot.render(<Probe query=".gitignore" />));
+    expect(results?.otherFiles.map((file) => file.path)).toContain(gitignore.path);
+    await act(async () => mountedRoot.render(<Probe query="Cargo.lock" />));
+    expect(results?.otherFiles.map((file) => file.path)).toContain(cargoLock.path);
+    await act(async () => mountedRoot.render(<Probe query="" />));
+    expect(results?.otherFiles).toEqual([]);
+    expect(results?.recentFilesInResults).toEqual([]);
+  } finally {
+    try {
+      await act(async () => root?.unmount());
+    } finally {
+      host.remove();
+      useBufferStore.setState(previousBuffers);
+      useRecentFilesStore.setState({ recentFiles: previousRecent });
+      if (previousAct === undefined) delete environment.IS_REACT_ACT_ENVIRONMENT;
+      else environment.IS_REACT_ACT_ENVIRONMENT = previousAct;
+      restoreDom();
+    }
+  }
+});

@@ -3,16 +3,15 @@ import { type FffIndexedFile, fffListFiles } from "@/features/file-search/lib/fi
 import { getNativeWorkspaceRootPaths } from "@/features/file-search/utils/file-search-paths";
 import { useFileSystemStore } from "@/features/file-system/stores/file-system.store";
 import type { FileItem } from "../types/quick-open.types";
-import { shouldIgnoreFile } from "../utils/file-filtering";
 
+// Keep the complete snapshot: the switcher-only ignore list is applied by useFileSearch for empty
+// queries so an explicit filename search can still reach files such as .gitignore or Cargo.lock.
 const toQuickOpenFiles = (files: readonly Pick<FffIndexedFile, "name" | "path">[]): FileItem[] =>
-  files
-    .filter((file) => !shouldIgnoreFile(file.path))
-    .map((file) => ({
-      name: file.name,
-      path: file.path,
-      isDir: false,
-    }));
+  files.map((file) => ({
+    name: file.name,
+    path: file.path,
+    isDir: false,
+  }));
 
 export const useFileLoader = (isVisible: boolean) => {
   const getAllProjectFiles = useFileSystemStore((state) => state.getAllProjectFiles);

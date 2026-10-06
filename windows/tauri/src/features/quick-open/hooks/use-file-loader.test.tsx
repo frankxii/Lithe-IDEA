@@ -24,7 +24,7 @@ test("loads one snapshot per opening, refreshes created files and rejects late w
     relative_path: name,
   });
   const list = spyOn(api, "fffListFiles")
-    .mockResolvedValueOnce([file("before.ts")])
+    .mockResolvedValueOnce([file("before.ts"), file(".gitignore")])
     .mockResolvedValueOnce([file("after.ts")])
     .mockImplementationOnce(() => oldRequest)
     .mockResolvedValueOnce([file("new-workspace.ts")]);
@@ -40,7 +40,8 @@ test("loads one snapshot per opening, refreshes created files and rejects late w
     root = createRoot(host);
     const mountedRoot = root;
     await act(async () => mountedRoot.render(<Probe visible />));
-    expect(result?.files.map((file) => file.name)).toEqual(["before.ts"]);
+    // The snapshot is unfiltered so explicit filename searches can reach ignored-by-switcher files.
+    expect(result?.files.map((file) => file.name)).toEqual(["before.ts", ".gitignore"]);
     await act(async () => mountedRoot.render(<Probe visible />));
     expect(list).toHaveBeenCalledTimes(1);
     expect(status).not.toHaveBeenCalled();
