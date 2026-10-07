@@ -153,3 +153,68 @@ test("a new commit or repository loads files and ignores late answers from the o
   expect(container.textContent).toContain("other.ts");
   expect(preview).toHaveBeenCalledTimes(1);
 });
+
+const fail = async (index: number) => {
+  await act(async () => requests[index].resolve(null));
+};
+const clickRetry = async () => {
+  const retry = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "Retry",
+  );
+  expect(retry).toBeDefined();
+  await act(async () => retry!.click());
+};
+
+test("a failed read retries when the user selects the same commit again and then stays stable", async () => {
+  await render([commit("tip")]);
+  await fail(0);
+  expect(container.textContent).toContain("Unable to load changed files");
+  expect(preview).not.toHaveBeenCalled();
+
+  // Only explicit selections bump previewRequest; the retry must also preview once it succeeds.
+  await render([commit("tip")], "C:/fixture", 1);
+  expect(filesSpy).toHaveBeenCalledTimes(2);
+  await release(1, "recovered.ts");
+  expect(container.textContent).toContain("recovered.ts");
+  expect(container.textContent).not.toContain("Unable to load changed files");
+  expect(preview).toHaveBeenCalledTimes(1);
+
+  await render([commit("tip")], "C:/fixture", 1);
+  await render([{ ...commit("tip"), message: "Updated metadata" }], "C:/fixture", 1);
+  expect(filesSpy).toHaveBeenCalledTimes(2);
+});
+
+test("a failed read retries when history refresh delivers a new object for the same commit", async () => {
+  await render([commit("tip")]);
+  await fail(0);
+  await render([{ ...commit("tip"), message: "Refreshed" }]);
+  expect(filesSpy).toHaveBeenCalledTimes(2);
+  await release(1, "refreshed.ts");
+  expect(container.textContent).toContain("refreshed.ts");
+});
+
+test("the retry action reloads a failed selection without needing a new selection", async () => {
+  await render([commit("tip")]);
+  await fail(0);
+  await clickRetry();
+  expect(filesSpy).toHaveBeenCalledTimes(2);
+  expect(container.textContent).toContain("Loading changed files");
+  await release(1, "manual.ts");
+  expect(container.textContent).toContain("manual.ts");
+});
+
+test("a failure on the previous commit does not double-load the newly selected commit", async () => {
+  await render([commit("a")]);
+  await fail(0);
+  await render([commit("b")], "C:/fixture", 1);
+  expect(filesSpy).toHaveBeenCalledTimes(2);
+  await release(1, "b.ts");
+  expect(container.textContent).toContain("b.ts");
+  expect(filesSpy).toHaveBeenCalledTimes(2);
+});
+
+test("a pending read is not restarted by repainting, only failures retry", async () => {
+  await render([commit("tip")]);
+  await render([{ ...commit("tip"), message: "Repainted" }], "C:/fixture", 1);
+  expect(filesSpy).toHaveBeenCalledTimes(1);
+});

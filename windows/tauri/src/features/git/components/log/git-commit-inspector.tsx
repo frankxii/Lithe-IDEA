@@ -69,6 +69,9 @@ export function GitCommitInspector({
               : selectionDiff.commits.map((selected) => selected.hash),
         ]);
   const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null);
+  // Only a failed read is retryable: successful and in-flight reads keep their stable identity.
+  const [failedSelectionKey, setFailedSelectionKey] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const handledPreviewRequestRef = useRef(previewRequest);
 
   // Selecting a commit previews its first file, like the IDEA Git log. Only explicit user
@@ -103,10 +106,22 @@ export function GitCommitInspector({
     );
   });
 
+  // Re-selecting the same commit or refreshing history retries a failed read. The failed key must
+  // match the current selection, otherwise a stale failure would double-load a newly chosen commit.
+  const retryFailedSelection = useEffectEvent(() => {
+    if (failedSelectionKey !== null && failedSelectionKey === selectionKey) {
+      setLoadAttempt((attempt) => attempt + 1);
+    }
+  });
+  useEffect(() => {
+    retryFailedSelection();
+  }, [previewRequest, selectionDiff]);
+
   useEffect(() => {
     const requestId = ++requestIdRef.current;
     setFiles([]);
     setLoadedSelectionKey(null);
+    setFailedSelectionKey(null);
     setSelectedPath(null);
     if (!selectionKey) {
       setLoadState("idle");
@@ -117,6 +132,7 @@ export function GitCommitInspector({
     void loadSelectionFiles().then((loadedFiles) => {
       if (requestId !== requestIdRef.current) return;
       if (loadedFiles === null) {
+        setFailedSelectionKey(selectionKey);
         setLoadState("failed");
         return;
       }
@@ -128,7 +144,7 @@ export function GitCommitInspector({
     return () => {
       requestIdRef.current += 1;
     };
-  }, [selectionKey]);
+  }, [selectionKey, loadAttempt]);
 
   return (
     <div className="h-full min-h-0 bg-background font-sans ui-text-sm select-none">
@@ -175,8 +191,16 @@ export function GitCommitInspector({
                 {t("git.log.loadingChangedFiles")}
               </div>
             ) : loadState === "failed" ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center text-destructive">
-                {t("git.log.unableToLoadFiles")}
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+                <span className="text-destructive">{t("git.log.unableToLoadFiles")}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+                >
+                  {t("git.log.retry")}
+                </Button>
               </div>
             ) : files.length === 0 ? (
               <div className="flex min-h-0 flex-1 items-center justify-center text-subtle-foreground">
