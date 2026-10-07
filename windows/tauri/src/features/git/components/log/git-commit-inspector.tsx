@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { GitDiffIcon } from "@/ui/icons";
 import { Button } from "@/ui/button";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/ui/resizable";
@@ -54,15 +54,27 @@ export function GitCommitInspector({
   const inspectorPanelLayout = useGitLogPreferencesStore.use.inspectorPanelLayout();
   const { setInspectorPanelLayout } = useGitLogPreferencesStore.use.actions();
   const selectionDiff = useMemo(() => resolveGitCommitSelectionDiff(commits), [commits]);
-  // The selection `files` were loaded for; guards against previewing the previous commit's files
-  // during the render in which a new selection has arrived but its files have not loaded yet.
-  const [loadedSelection, setLoadedSelection] = useState<GitCommitSelectionDiff | null>(null);
+  // Commit contents are immutable. A new history array or refreshed metadata
+  // must not clear the file tree or restart a read for the same comparison.
+  const selectionKey =
+    !repoPath || !selectionDiff
+      ? null
+      : JSON.stringify([
+          repoPath,
+          selectionDiff.kind,
+          selectionDiff.kind === "commit"
+            ? selectionDiff.commit.hash
+            : selectionDiff.kind === "range"
+              ? [selectionDiff.baseRef, selectionDiff.targetRef]
+              : selectionDiff.commits.map((selected) => selected.hash),
+        ]);
+  const [loadedSelectionKey, setLoadedSelectionKey] = useState<string | null>(null);
   const handledPreviewRequestRef = useRef(previewRequest);
 
   // Selecting a commit previews its first file, like the IDEA Git log. Only explicit user
   // selections bump `previewRequest`, so opening the Log never steals the editor on its own.
   useEffect(() => {
-    if (!selectionDiff || loadedSelection !== selectionDiff) return;
+    if (!selectionDiff || loadedSelectionKey !== selectionKey) return;
     if (handledPreviewRequestRef.current === previewRequest) return;
     handledPreviewRequestRef.current = previewRequest;
 
@@ -70,53 +82,53 @@ export function GitCommitInspector({
     if (!firstPath) return;
     setSelectedPath(firstPath);
     onPreviewFile(selectionDiff, firstPath);
-  }, [files, loadedSelection, onPreviewFile, previewRequest, selectionDiff]);
+  }, [files, loadedSelectionKey, onPreviewFile, previewRequest, selectionDiff, selectionKey]);
+
+  const loadSelectionFiles = useEffectEvent(() => {
+    if (!repoPath || !selectionDiff) return Promise.resolve(null);
+    if (selectionDiff.kind === "commit") {
+      return getCommitFiles(repoPath, selectionDiff.commit.hash);
+    }
+    if (selectionDiff.kind === "range") {
+      return getRefDiff(repoPath, selectionDiff.baseRef, selectionDiff.targetRef).then((diffs) =>
+        diffs ? gitDiffsToCommitFiles(diffs) : null,
+      );
+    }
+    return mapGitReadsInBatches(selectionDiff.commits, (selectedCommit) =>
+      getCommitFiles(repoPath, selectedCommit.hash).then((files) => ({ files })),
+    ).then((results) =>
+      results.some((result) => result.files === null)
+        ? null
+        : aggregateSelectedCommitFileRows(results.map((result) => ({ files: result.files ?? [] }))),
+    );
+  });
 
   useEffect(() => {
     const requestId = ++requestIdRef.current;
     setFiles([]);
-    setLoadedSelection(null);
+    setLoadedSelectionKey(null);
     setSelectedPath(null);
-    if (!repoPath || !selectionDiff) {
+    if (!selectionKey) {
       setLoadState("idle");
       return;
     }
 
     setLoadState("loading");
-    const filesPromise = (() => {
-      if (selectionDiff.kind === "commit") {
-        return getCommitFiles(repoPath, selectionDiff.commit.hash);
-      }
-      if (selectionDiff.kind === "range") {
-        return getRefDiff(repoPath, selectionDiff.baseRef, selectionDiff.targetRef).then((diffs) =>
-          diffs ? gitDiffsToCommitFiles(diffs) : null,
-        );
-      }
-      return mapGitReadsInBatches(selectionDiff.commits, (selectedCommit) =>
-        getCommitFiles(repoPath, selectedCommit.hash).then((files) => ({ files })),
-      ).then((results) =>
-        results.some((result) => result.files === null)
-          ? null
-          : aggregateSelectedCommitFileRows(
-              results.map((result) => ({ files: result.files ?? [] })),
-            ),
-      );
-    })();
-    void filesPromise.then((loadedFiles) => {
+    void loadSelectionFiles().then((loadedFiles) => {
       if (requestId !== requestIdRef.current) return;
       if (loadedFiles === null) {
         setLoadState("failed");
         return;
       }
       setFiles(loadedFiles);
-      setLoadedSelection(selectionDiff);
+      setLoadedSelectionKey(selectionKey);
       setLoadState("ready");
     });
 
     return () => {
       requestIdRef.current += 1;
     };
-  }, [repoPath, selectionDiff]);
+  }, [selectionKey]);
 
   return (
     <div className="h-full min-h-0 bg-background font-sans ui-text-sm select-none">
