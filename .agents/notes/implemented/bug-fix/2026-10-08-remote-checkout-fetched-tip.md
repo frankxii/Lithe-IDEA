@@ -20,6 +20,7 @@ IntelliJ Community `fb72b4df43aba102479eb0502d20b03586b9c5b8` 的 `GitRemoteBran
 - 本地独有提交必须在自动 stash（暂存本地未提交修改）之前被拒绝。Force Checkout 只授权丢弃未提交修改，不能授权丢弃本地提交。其他工作树占用仍由 Git 拒绝。
 - 普通本地 Checkout 与 Checkout and Rebase 保持原有含义，后者是把目标分支变基到原当前分支，不暗中改成远程更新。
 - 两端在成功和失败后都刷新真实仓库状态：切换、快进与恢复暂存修改是组合操作，后续失败不能被解释成仓库完全没有变化。
+- Windows Git Log 的 Checkout 成功提示由界面用现有本地化文案生成，包含所选引用名称。Checkout API 的成功 `message` 为空，直接把它作为 toast 文案会只剩成功图标；不能依赖 Git 输出作为产品成功提示。失败继续展示实际错误信息。
 
 例如本地 `preview` 在 A、已 Fetch 的 `upstream/preview` 在后继 B，从其他分支 Checkout 远程后应得到 `HEAD = preview = B`；已在 `preview` 时也得到 B。不要只切到 A，也不要未经检查直接 `switch -C` 强制覆盖本地提交。
 
@@ -37,8 +38,9 @@ IntelliJ Community `fb72b4df43aba102479eb0502d20b03586b9c5b8` 的 `GitRemoteBran
 
 - 共享场景 `shared/fixtures/git/remote-checkout-v1.json` 由真实 Git 集成测试驱动，覆盖当前／其他分支、缺失本地分支、工作区／暂存区／未跟踪文件、Force、Smart Checkout、本地独有提交和其他工作树占用。
 - `rust/lithe-core/src/tests/git_remote_checkout.rs` 验证真实 Fetch 后 HEAD、本地引用、跟踪关系与文件内容一致，并验证失败保留引用、文件、暂存区和 stash；另覆盖旧请求格式、普通本地 Checkout 与 Checkout and Rebase。
+- `windows/tauri/src/features/git/components/log/git-log-branch-actions.test.tsx` 使用实际 API 的空成功 `message`，验证本地／远程 Checkout 在中英文下仍显示完整成功文案与所选引用名称，并刷新 Git Log。
 - 运行 `.agents/skills/write-stable-tests/scripts/verify-test-stability.ps1` 和共享 Rust 的单测试计时工具；运行 `scripts/verify-rust-core-comments.sh`、`scripts/verify-agent-notes.sh`、`scripts/verify-platform-feature-matrix.sh`、`scripts/verify-runtime-bundle-immutability.sh`。
-- 远程 Checkout 的共享 Core 路径由真实 Git 集成用例验证；两端原生界面与其他矩阵验收场景需单独核对。
+- 用户于 2026-10-08 确认本次 Windows 改动的本地测试没有问题，作为远程 Checkout 更新与成功提示恢复的用户验收依据。macOS 编译／原生界面及其他矩阵验收场景仍需单独验证；不要把本次反馈扩大为整项能力的全平台验收。
 
 ## 适用范围
 
