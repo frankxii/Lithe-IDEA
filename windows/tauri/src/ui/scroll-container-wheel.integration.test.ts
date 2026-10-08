@@ -115,3 +115,51 @@ test("unbind removes listeners and cancels both axes before their next frame", (
   expect(element.scrollLeft).toBe(0);
   expect(wheel().defaultPrevented).toBe(false);
 });
+
+test("file rows and sibling scrollbars share the same viewport animation", () => {
+  unbind();
+  const root = document.createElement("div");
+  const scrollbar = document.createElement("div");
+  document.body.append(root);
+  root.append(element, scrollbar);
+  unbind = bindScrollContainerWheel(element, { smooth: true, eventTarget: root, stopPropagation: true });
+  // Model a scrollbar primitive that independently applies its own wheel delta.
+  const directWheel = () => { element.scrollTop += 80; };
+  scrollbar.addEventListener("wheel", directWheel);
+  try {
+    wheel();
+    scrollbar.dispatchEvent(new window.WheelEvent("wheel", {
+      bubbles: true, cancelable: true, deltaY: 80,
+    }));
+    expect(element.scrollTop).toBe(0);
+    expect(frames.size).toBe(1);
+    advance(100);
+    expect(element.scrollTop).toBeGreaterThan(0);
+    expect(element.scrollTop).toBeLessThan(200);
+    advance(200);
+    expect(element.scrollTop).toBe(200);
+    expect(root.scrollTop).toBe(0);
+    unbind();
+    const event = new window.WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 80 });
+    scrollbar.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+  } finally { unbind(); scrollbar.removeEventListener("wheel", directWheel); root.remove(); }
+});
+
+test("dragging a sibling scrollbar cancels the viewport's wheel motion", () => {
+  unbind();
+  const root = document.createElement("div");
+  const scrollbar = document.createElement("div");
+  document.body.append(root);
+  root.append(element, scrollbar);
+  unbind = bindScrollContainerWheel(element, { smooth: true, eventTarget: root });
+  try {
+    wheel();
+    advance(50);
+    const position = element.scrollTop;
+    scrollbar.dispatchEvent(new window.Event("pointerdown", { bubbles: true }));
+    expect(frames.size).toBe(0);
+    advance(200);
+    expect(element.scrollTop).toBe(position);
+  } finally { unbind(); root.remove(); }
+});

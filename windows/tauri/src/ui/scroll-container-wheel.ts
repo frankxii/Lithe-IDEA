@@ -117,7 +117,11 @@ function applyVerticalWheelEvent(
   return animate ? animate("y", delta.y) : applyVerticalWheelToScrollContainer(element, delta.y);
 }
 
-export function bindScrollContainerWheel(element: HTMLElement, options: { smooth?: boolean } = {}) {
+export function bindScrollContainerWheel(
+  element: HTMLElement,
+  options: { smooth?: boolean; eventTarget?: HTMLElement; stopPropagation?: boolean } = {},
+) {
+  const eventTarget = options.eventTarget ?? element;
   const view = element.ownerDocument.defaultView;
   const scheduler = view ? {
     now: () => view.performance.now(),
@@ -151,21 +155,22 @@ export function bindScrollContainerWheel(element: HTMLElement, options: { smooth
     if (!event.cancelable) return;
     if (!applyVerticalWheelEvent(element, event, vertical ? animate : undefined)) return;
     event.preventDefault();
+    if (options.stopPropagation) event.stopPropagation();
   };
   const onVisibilityChange = () => {
     if (element.ownerDocument.hidden) stop();
   };
 
-  element.addEventListener("wheel", onWheel, { capture: true, passive: false });
+  eventTarget.addEventListener("wheel", onWheel, { capture: true, passive: false });
   if (vertical) {
-    element.addEventListener("keydown", stop, true);
-    element.addEventListener("pointerdown", stop, true);
+    eventTarget.addEventListener("keydown", stop, true);
+    eventTarget.addEventListener("pointerdown", stop, true);
     element.ownerDocument.addEventListener("visibilitychange", onVisibilityChange);
   }
   return () => {
-    element.removeEventListener("wheel", onWheel, { capture: true });
-    element.removeEventListener("keydown", stop, true);
-    element.removeEventListener("pointerdown", stop, true);
+    eventTarget.removeEventListener("wheel", onWheel, { capture: true });
+    eventTarget.removeEventListener("keydown", stop, true);
+    eventTarget.removeEventListener("pointerdown", stop, true);
     element.ownerDocument.removeEventListener("visibilitychange", onVisibilityChange);
     stop();
   };
