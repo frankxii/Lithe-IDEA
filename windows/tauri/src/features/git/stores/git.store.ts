@@ -93,11 +93,23 @@ export const createGitStore = () => {
   // render the file list. Versions span all refresh scopes in this workspace.
   let nextWorkingTreeVersion = 0;
   let publishedWorkingTreeVersion = 0;
-  const acceptWorkingTree = (version?: number) => {
-    version ??= ++nextWorkingTreeVersion;
+  // Operation state is only read by full refreshes. Its watermark advances only when
+  // an operation state is published, so a newer status-only publication (which moves
+  // the working-tree watermark) cannot reject an older full read's operation state.
+  let publishedOperationVersion = 0;
+  const acceptWorkingTree = (version: number) => {
     if (version < publishedWorkingTreeVersion) return false;
     publishedWorkingTreeVersion = version;
     return true;
+  };
+  const acceptOperationState = (version: number) => {
+    if (version < publishedOperationVersion) return false;
+    publishedOperationVersion = version;
+    return true;
+  };
+  // A new repository or workspace session invalidates every read issued before it.
+  const invalidatePendingReads = () => {
+    publishedWorkingTreeVersion = publishedOperationVersion = ++nextWorkingTreeVersion;
   };
 
   // Note: .agents/notes/implemented/architecture/2026-10-08-windows-git-status-ownership.md
@@ -160,7 +172,7 @@ export const createGitStore = () => {
       prepareRepositoryLoad: (repoPath) => {
         const state = get();
         if (state.currentRepoPath === repoPath) return;
-        publishedWorkingTreeVersion = ++nextWorkingTreeVersion;
+        invalidatePendingReads();
 
         set({
           gitStatus: projectWorkspaceGitStatus(
@@ -192,14 +204,14 @@ export const createGitStore = () => {
           return;
         }
 
-        const publishWorkingTree = acceptWorkingTree(workingTreeVersion);
+        const version = workingTreeVersion ?? ++nextWorkingTreeVersion;
+        const publishWorkingTree = acceptWorkingTree(version);
+        const publishOperationState = acceptOperationState(version);
         set((state) => ({
           ...(publishWorkingTree
-            ? {
-                ...statusProjection(state, repositoryStatuses, Object.keys(repositoryStatuses)),
-                operationState,
-              }
+            ? statusProjection(state, repositoryStatuses, Object.keys(repositoryStatuses))
             : {}),
+          ...(publishOperationState ? { operationState } : {}),
           commits,
           branches,
           stashes,
@@ -219,15 +231,17 @@ export const createGitStore = () => {
       }) => {
         set((state) => {
           if (state.currentRepoPath !== repoPath) return state;
-          const publishWorkingTree = acceptWorkingTree(workingTreeVersion);
+          const version = workingTreeVersion ?? ++nextWorkingTreeVersion;
+          const publishWorkingTree = acceptWorkingTree(version);
+          const publishOperationState =
+            operationState !== undefined && acceptOperationState(version);
           const next = {
             ...(publishWorkingTree
               ? statusProjection(state, repositoryStatuses, Object.keys(repositoryStatuses))
               : {}),
-            operationState:
-              publishWorkingTree && operationState !== undefined
-                ? reuseSnapshot(state.operationState, operationState)
-                : state.operationState,
+            operationState: publishOperationState
+              ? reuseSnapshot(state.operationState, operationState)
+              : state.operationState,
             branches:
               branches === undefined ? state.branches : reuseSnapshot(state.branches, branches),
             commits: commits === undefined ? state.commits : reuseSnapshot(state.commits, commits),
@@ -249,7 +263,7 @@ export const createGitStore = () => {
       },
 
       publishRepositoryStatuses: (statuses, version, repoPaths) => {
-        if (!acceptWorkingTree(version)) return;
+        if (!acceptWorkingTree(version ?? ++nextWorkingTreeVersion)) return;
         set((state) => {
           const next = statusProjection(
             state,
@@ -335,7 +349,7 @@ export const createGitStore = () => {
         }),
 
       reset: () => {
-        publishedWorkingTreeVersion = ++nextWorkingTreeVersion;
+        invalidatePendingReads();
         set({
           repositoryStatuses: {},
           statusRepoPaths: [],

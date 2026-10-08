@@ -302,6 +302,60 @@ describe("Git working-tree publication ordering", () => {
     expect(store.getState().gitStatus).toBeNull();
     expect(store.getState().operationState).toBeNull();
   });
+
+  for (const [name, before, after] of [
+    ["resolved conflict clears the banner", oldOperation, null],
+    ["new conflict reaches the banner", null, oldOperation],
+  ] as const) {
+    test(`a newer status-only publication does not reject an older full read's operation state: ${name}`, () => {
+      const store = createGitStore();
+      const { actions } = store.getState();
+      actions.prepareRepositoryLoad("C:/repo");
+      actions.refreshGitData({
+        repoPath: "C:/repo",
+        workingTreeVersion: actions.beginWorkingTreeRefresh(),
+        repositoryStatuses: { "C:/repo": status(false) },
+        operationState: before,
+      });
+      // Event order: the Commit controller starts a full read, then the global host
+      // starts and publishes a status-only read before the operation state returns.
+      const fullRead = actions.beginWorkingTreeRefresh();
+      const hostStatus = status(true);
+      actions.publishRepositoryStatuses({ "C:/repo": hostStatus }, actions.beginWorkingTreeRefresh());
+      expect(store.getState().gitStatus).toBe(hostStatus);
+
+      actions.refreshGitData({
+        repoPath: "C:/repo",
+        workingTreeVersion: fullRead,
+        repositoryStatuses: { "C:/repo": status(false) },
+        operationState: after,
+      });
+
+      expect(store.getState().operationState).toEqual(after);
+      // The older file snapshot is still rejected: it must not roll the list back.
+      expect(store.getState().gitStatus).toBe(hostStatus);
+    });
+  }
+
+  test("an older operation state is still rejected after a newer one was published", () => {
+    const store = createGitStore();
+    const { actions } = store.getState();
+    actions.prepareRepositoryLoad("C:/repo");
+    const olderRead = actions.beginWorkingTreeRefresh();
+    actions.refreshGitData({
+      repoPath: "C:/repo",
+      workingTreeVersion: actions.beginWorkingTreeRefresh(),
+      repositoryStatuses: { "C:/repo": status(true) },
+      operationState: null,
+    });
+    actions.refreshGitData({
+      repoPath: "C:/repo",
+      workingTreeVersion: olderRead,
+      repositoryStatuses: { "C:/repo": status(false) },
+      operationState: oldOperation,
+    });
+    expect(store.getState().operationState).toBeNull();
+  });
 });
 
 describe("Git refresh notifications", () => {
