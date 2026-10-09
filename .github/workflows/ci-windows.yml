@@ -390,6 +390,7 @@ jobs:
             "src/features/git/components/log/git-commit-table.presentation.test.tsx",
             "src/features/git/components/log/git-commit-table-keyboard-menu.test.tsx",
             "src/features/git/components/log/git-commit-table-tag.test.tsx",
+            "src/features/git/components/log/git-create-tag-dialog.test.tsx",
             "src/features/git/components/log/git-graph-row.test.ts",
             "src/features/git/components/log/git-graph-row.theme.test.tsx",
             "src/features/git/components/log/git-log-branch-actions.test.tsx",

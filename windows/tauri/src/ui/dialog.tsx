@@ -41,6 +41,11 @@ interface DialogProps {
   headerActions?: ReactNode;
   footer?: ReactNode;
   size?: "sm" | "md" | "lg";
+  /**
+   * Element focused when the dialog opens. Without it Base UI focuses the
+   * first tabbable element, which is the header close button.
+   */
+  initialFocus?: React.RefObject<HTMLElement | null>;
   headerBorder?: boolean;
   footerBorder?: boolean;
   classNames?: Partial<{
@@ -192,6 +197,7 @@ const AppDialog = ({
   headerActions,
   footer,
   size = "md",
+  initialFocus,
   classNames,
 }: DialogProps) => {
   const { t } = useTranslation();
@@ -247,6 +253,7 @@ const AppDialog = ({
 
         <DialogPrimitive.Popup
           aria-describedby={undefined}
+          initialFocus={initialFocus}
           render={
             <motion.div
               initial={popupMotion.initial}
